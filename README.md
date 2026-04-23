@@ -47,7 +47,7 @@ Example:
 
 ```text
 target,contrast,adj.pval,log2FC,up.down
-BaRT2v18chr2HG106390,Live.Barke-HI.Barke,0.0022,-1.6185,down-regulated
+BaRT2v18chrXYZ,cond.sample-HI.cond,0.0022,-1.6185,down-regulated
 ```
 
 ### 3. Optional ID list file
