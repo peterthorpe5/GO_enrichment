@@ -668,7 +668,13 @@ extract_lengths_from_fasta <- function(fasta_file, annotation_info, id_type) {
   }
 
   seqs <- Biostrings::readDNAStringSet(filepath = fasta_file)
-  seq_lengths <- width(x = seqs)
+  if (requireNamespace("BiocGenerics", quietly = TRUE)) {
+    seq_lengths <- BiocGenerics::width(x = seqs)
+  } else if (requireNamespace("IRanges", quietly = TRUE)) {
+    seq_lengths <- IRanges::width(x = seqs)
+  } else {
+    seq_lengths <- nchar(x = as.character(x = seqs), type = "chars")
+  }
   names(x = seq_lengths) <- sub(pattern = "\\s+.*$", replacement = "", x = names(x = seqs))
 
   if (identical(id_type, "transcript")) {
