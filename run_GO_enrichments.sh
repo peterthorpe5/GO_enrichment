@@ -70,6 +70,36 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --make_plots TRUE
 
 
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
+  --de_file DE_results/sig_DE_genes_list_stats.csv \
+  --annotation_file data/BaRT2v18_annotation_GO_only.txt \
+  --out_dir go_gene_clusterprofiler_expanded \
+  --id_type gene \
+  --methods clusterprofiler \
+  --background_source expression_file \
+  --expression_file data/Gene_TPM.csv \
+  --expression_min_tpm 2 \
+  --expression_min_samples 2 \
+  --split_direction TRUE \
+  --make_plots TRUE --fdr_cutoff 0.05
+
+
+  Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
+  --de_file DE_results/sig_DE_transcripts_lists_stats.csv \
+  --annotation_file data/BaRT2v18_annotation_GO_only.txt \
+  --out_dir go_transcript_clusterprofiler_expanded \
+  --id_type transcript \
+  --methods clusterprofiler \
+  --background_source expression_file \
+  --expression_file data/Transcript_TPM.csv \
+  --expression_min_tpm 2 \
+  --expression_min_samples 2 \
+  --split_direction TRUE \
+  --make_plots TRUE
+
+
+
+
   ###### - we need gene lengths for the Goseq
 
 Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
