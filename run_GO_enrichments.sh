@@ -28,7 +28,7 @@ write.table(
 
 # with the above made background:
 
-Rscript barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --de_file DE_results/sig_DE_genes_list_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_gene_clusterprofiler \
@@ -42,7 +42,7 @@ Rscript barley_go_enrichment_custom_v6.R  \
   
 # single method_performance
 
-Rscript barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --de_file DE_results/sig_DE_genes_list_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_gene_clusterprofiler \
@@ -56,7 +56,7 @@ Rscript barley_go_enrichment_custom_v6.R  \
   --make_plots TRUE --fdr_cutoff 0.05
 
 
-  Rscript barley_go_enrichment_custom_v6.R  \
+  Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --de_file DE_results/sig_DE_transcripts_lists_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_transcript_clusterprofiler \
@@ -72,7 +72,7 @@ Rscript barley_go_enrichment_custom_v6.R  \
 
   ###### - we need gene lengths for the Goseq
 
-Rscript barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --de_file data/sig_DE_genes_list_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_gene_both_methods \
@@ -87,7 +87,7 @@ Rscript barley_go_enrichment_custom_v6.R  \
   --fasta_file data/BaRT2v18.fa
 
 
-Rscript barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --de_file data/sig_DE_transcriipts_lists_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_transcript_both_methods \

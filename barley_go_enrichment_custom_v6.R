@@ -975,10 +975,19 @@ get_go_ancestors <- function(go_ids, ontology_codes) {
       next
     }
 
-    ancestor_list <- mget(
-      x = these_ids,
-      envir = env_lookup[[ontology_code]],
-      ifnotfound = NA
+    ancestor_lookup <- as.list(x = env_lookup[[ontology_code]][these_ids])
+    ancestor_list <- stats::setNames(
+      object = lapply(
+        X = these_ids,
+        FUN = function(go_id) {
+          value <- ancestor_lookup[[go_id]]
+          if (is.null(x = value)) {
+            return(NA_character_)
+          }
+          value
+        }
+      ),
+      nm = these_ids
     )
 
     for (go_id in names(x = ancestor_list)) {
