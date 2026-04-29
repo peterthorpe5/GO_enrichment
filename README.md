@@ -382,7 +382,12 @@ or:
 under_represented_padj <= --fdr_cutoff
 ```
 
-The latest version also adds `geneID` and `Count` columns to `goseq` output where possible, so the gene-set grouping output can be generated for `goseq` as well as `clusterProfiler`.
+The latest version also adds `geneID` and `Count` columns to `goseq` output where possible, so the gene-set grouping output can be generated for `goseq` as well as `clusterProfiler`. For goseq, the main significant-only enrichment file focuses on over-represented GO terms using:
+
+over_represented_padj <= --fdr_cutoff
+
+The full goseq output also contains under_represented_pvalue and under_represented_padj columns. These can be inspected separately if depletion of GO categories is biologically relevant to the study question.
+
 
 ## GO context columns added to outputs
 

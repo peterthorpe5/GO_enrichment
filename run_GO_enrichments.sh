@@ -102,7 +102,7 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
 
   ###### - we need gene lengths for the Goseq
 
-Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
   --de_file data/sig_DE_genes_list_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_gene_both_methods \
@@ -113,11 +113,11 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --expression_min_tpm 2 \
   --expression_min_samples 2 \
   --split_direction TRUE \
-  --make_plots TRUE    --fdr_cutoff 0.05\
+  --make_plots TRUE    --fdr_cutoff 0.05 \
   --fasta_file data/BaRT2v18.fa
 
 
-Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
+Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
   --de_file data/sig_DE_transcriipts_lists_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_transcript_both_methods \
@@ -128,7 +128,7 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6.R  \
   --expression_min_tpm 2 \
   --expression_min_samples 2 \
   --split_direction TRUE \
-  --make_plots TRUE    --fdr_cutoff 0.05\
+  --make_plots TRUE    --fdr_cutoff 0.05 \
   --fasta_file data/BaRT2v18.fa
 
 
