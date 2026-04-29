@@ -25,6 +25,10 @@
 #'   * This debug build adds detailed background-universe logging.
 #'   * Expression backgrounds now use lapply() rather than apply() to
 #'     avoid fragile matrix coercion when reading TPM tables.
+#'   * GO ontology context columns are added to output tables.
+#'   * Optional most-specific and broad-parent significant tables are written
+#'     to help interpret cases where broad parent terms and narrower child
+#'     terms are both significant.
 
 suppressPackageStartupMessages({
   library(optparse)
@@ -186,6 +190,26 @@ option_list <- list(
     type = "integer",
     default = 20,
     help = "Maximum number of GO terms to include in summary plots. [default: %default]"
+  ),
+  make_option(
+    opt_str = c("--write_specific_terms"),
+    type = "character",
+    default = "TRUE",
+    help = paste(
+      "Whether to write an additional significant-most-specific table.",
+      "This keeps significant terms that do not have significant descendant",
+      "GO terms in the same result set. TRUE or FALSE. [default: %default]"
+    )
+  ),
+  make_option(
+    opt_str = c("--write_broad_terms"),
+    type = "character",
+    default = "TRUE",
+    help = paste(
+      "Whether to write an additional significant-broad-parent table.",
+      "This keeps significant terms that do not have significant ancestor",
+      "GO terms in the same result set. TRUE or FALSE. [default: %default]"
+    )
   )
 )
 
@@ -218,6 +242,8 @@ args$background_source <- tolower(x = args$background_source)
 args$ontology <- toupper(x = args$ontology)
 args$split_direction <- tolower(x = args$split_direction) %in% c("true", "t", "1", "yes", "y")
 args$make_plots <- tolower(x = args$make_plots) %in% c("true", "t", "1", "yes", "y")
+args$write_specific_terms <- tolower(x = args$write_specific_terms) %in% c("true", "t", "1", "yes", "y")
+args$write_broad_terms <- tolower(x = args$write_broad_terms) %in% c("true", "t", "1", "yes", "y")
 
 parse_methods <- function(method_string) {
   method_string <- tolower(x = trimws(x = method_string))
@@ -899,7 +925,10 @@ run_goseq <- function(
 
   result_df <- merge(
     x = result_df,
-    y = term2name[, c("go_id", "go_term")],
+    y = unique(x = term2name[, intersect(
+      x = c("go_id", "go_term", "ontology"),
+      y = colnames(x = term2name)
+    ), drop = FALSE]),
     by.x = "category",
     by.y = "go_id",
     all.x = TRUE,
@@ -909,11 +938,224 @@ run_goseq <- function(
   list(result_df = result_df, pwf = pwf)
 }
 
+
+get_ontology_label <- function(ontology_code) {
+  labels <- c(
+    BP = "biological_process",
+    MF = "molecular_function",
+    CC = "cellular_component"
+  )
+  out <- unname(obj = labels[ontology_code])
+  out[is.na(x = out)] <- NA_character_
+  out
+}
+
+get_go_ancestors <- function(go_ids, ontology_codes) {
+  out <- stats::setNames(
+    object = vector(mode = "list", length = length(x = go_ids)),
+    nm = go_ids
+  )
+
+  if (!requireNamespace("GO.db", quietly = TRUE) ||
+      !requireNamespace("AnnotationDbi", quietly = TRUE)) {
+    return(out)
+  }
+
+  env_lookup <- list(
+    BP = GO.db::GOBPANCESTOR,
+    MF = GO.db::GOMFANCESTOR,
+    CC = GO.db::GOCCANCESTOR
+  )
+
+  for (ontology_code in names(x = env_lookup)) {
+    these_ids <- go_ids[ontology_codes %in% ontology_code]
+    these_ids <- these_ids[these_ids %in% AnnotationDbi::mappedkeys(x = env_lookup[[ontology_code]])]
+
+    if (length(x = these_ids) == 0) {
+      next
+    }
+
+    ancestor_list <- mget(
+      x = these_ids,
+      envir = env_lookup[[ontology_code]],
+      ifnotfound = NA
+    )
+
+    for (go_id in names(x = ancestor_list)) {
+      ancestors <- unique(x = as.character(x = ancestor_list[[go_id]]))
+      ancestors <- ancestors[!is.na(x = ancestors) & nzchar(x = ancestors)]
+      out[[go_id]] <- ancestors
+    }
+  }
+
+  out
+}
+
+add_go_context_columns <- function(result_df, method, term2name) {
+  if (nrow(x = result_df) == 0) {
+    return(result_df)
+  }
+
+  id_col <- if (identical(method, "clusterprofiler")) "ID" else "category"
+
+  if (!id_col %in% colnames(x = result_df)) {
+    return(result_df)
+  }
+
+  result_df$.original_order <- seq_len(length.out = nrow(x = result_df))
+
+  context_cols <- c(
+    "ontology",
+    "ontology_label",
+    "go_ancestor_count",
+    "significant_descendant_count",
+    "has_significant_descendant",
+    "most_specific_significant",
+    "significant_ancestor_count",
+    "has_significant_ancestor",
+    "broad_parent_significant"
+  )
+  result_df <- result_df[, !colnames(x = result_df) %in% context_cols, drop = FALSE]
+
+  meta_cols <- intersect(
+    x = c("go_id", "ontology"),
+    y = colnames(x = term2name)
+  )
+  meta_df <- unique(x = term2name[, meta_cols, drop = FALSE])
+
+  result_df <- merge(
+    x = result_df,
+    y = meta_df,
+    by.x = id_col,
+    by.y = "go_id",
+    all.x = TRUE,
+    sort = FALSE
+  )
+  result_df <- result_df[order(result_df$.original_order), , drop = FALSE]
+  result_df$.original_order <- NULL
+
+  if (!"ontology" %in% colnames(x = result_df)) {
+    result_df$ontology <- NA_character_
+  }
+
+  result_df$ontology_label <- get_ontology_label(ontology_code = result_df$ontology)
+
+  ancestor_list <- get_go_ancestors(
+    go_ids = as.character(x = result_df[[id_col]]),
+    ontology_codes = as.character(x = result_df$ontology)
+  )
+
+  result_df$go_ancestor_count <- vapply(
+    X = ancestor_list[as.character(x = result_df[[id_col]])],
+    FUN = length,
+    FUN.VALUE = integer(length = 1)
+  )
+
+  result_df$significant_descendant_count <- 0L
+  result_df$has_significant_descendant <- FALSE
+  result_df$most_specific_significant <- NA
+  result_df$significant_ancestor_count <- 0L
+  result_df$has_significant_ancestor <- FALSE
+  result_df$broad_parent_significant <- NA
+
+  result_df
+}
+
+mark_go_hierarchy_significance <- function(significant_df, method) {
+  if (nrow(x = significant_df) == 0) {
+    return(significant_df)
+  }
+
+  id_col <- if (identical(method, "clusterprofiler")) "ID" else "category"
+
+  if (!id_col %in% colnames(x = significant_df) ||
+      !"ontology" %in% colnames(x = significant_df)) {
+    return(significant_df)
+  }
+
+  go_ids <- as.character(x = significant_df[[id_col]])
+  ancestor_list <- get_go_ancestors(
+    go_ids = go_ids,
+    ontology_codes = as.character(x = significant_df$ontology)
+  )
+
+  descendant_count <- integer(length = length(x = go_ids))
+  ancestor_count <- integer(length = length(x = go_ids))
+  names(x = descendant_count) <- go_ids
+  names(x = ancestor_count) <- go_ids
+
+  for (child_id in go_ids) {
+    ancestors <- ancestor_list[[child_id]]
+    if (length(x = ancestors) == 0) {
+      next
+    }
+
+    significant_ancestors <- intersect(x = ancestors, y = go_ids)
+    if (length(x = significant_ancestors) == 0) {
+      next
+    }
+
+    ancestor_count[child_id] <- length(x = significant_ancestors)
+    descendant_count[significant_ancestors] <- descendant_count[significant_ancestors] + 1L
+  }
+
+  significant_df$significant_descendant_count <- as.integer(x = descendant_count[go_ids])
+  significant_df$has_significant_descendant <- significant_df$significant_descendant_count > 0L
+  significant_df$most_specific_significant <- !significant_df$has_significant_descendant
+  significant_df$significant_ancestor_count <- as.integer(x = ancestor_count[go_ids])
+  significant_df$has_significant_ancestor <- significant_df$significant_ancestor_count > 0L
+  significant_df$broad_parent_significant <- !significant_df$has_significant_ancestor
+
+  significant_df
+}
+
+mark_most_specific_significant <- function(significant_df, method) {
+  mark_go_hierarchy_significance(
+    significant_df = significant_df,
+    method = method
+  )
+}
+
+filter_most_specific_significant <- function(significant_df, method) {
+  marked_df <- mark_go_hierarchy_significance(
+    significant_df = significant_df,
+    method = method
+  )
+
+  if (!"most_specific_significant" %in% colnames(x = marked_df)) {
+    return(marked_df)
+  }
+
+  marked_df[marked_df$most_specific_significant %in% TRUE, , drop = FALSE]
+}
+
+filter_broad_parent_significant <- function(significant_df, method) {
+  marked_df <- mark_go_hierarchy_significance(
+    significant_df = significant_df,
+    method = method
+  )
+
+  if (!"broad_parent_significant" %in% colnames(x = marked_df)) {
+    return(marked_df)
+  }
+
+  marked_df[marked_df$broad_parent_significant %in% TRUE, , drop = FALSE]
+}
+
 write_empty_result <- function(file_path, method) {
   if (identical(method, "clusterprofiler")) {
     empty_df <- data.frame(
       ID = character(),
       Description = character(),
+      ontology = character(),
+      ontology_label = character(),
+      go_ancestor_count = integer(),
+      significant_descendant_count = integer(),
+      has_significant_descendant = logical(),
+      most_specific_significant = logical(),
+      significant_ancestor_count = integer(),
+      has_significant_ancestor = logical(),
+      broad_parent_significant = logical(),
       GeneRatio = character(),
       BgRatio = character(),
       pvalue = numeric(),
@@ -926,6 +1168,15 @@ write_empty_result <- function(file_path, method) {
   } else {
     empty_df <- data.frame(
       category = character(),
+      ontology = character(),
+      ontology_label = character(),
+      go_ancestor_count = integer(),
+      significant_descendant_count = integer(),
+      has_significant_descendant = logical(),
+      most_specific_significant = logical(),
+      significant_ancestor_count = integer(),
+      has_significant_ancestor = logical(),
+      broad_parent_significant = logical(),
       over_represented_pvalue = numeric(),
       under_represented_pvalue = numeric(),
       numDEInCat = integer(),
@@ -1178,7 +1429,17 @@ create_output_paths <- function(out_dir, method_name, id_type, set_name, directi
       significant_dir,
       sprintf("%s_significant_go_enrichment.tsv", file_stub)
     ),
-    significant_plot_prefix = file.path(significant_dir, sprintf("%s_significant", file_stub))
+    specific_result_file = file.path(
+      significant_dir,
+      sprintf("%s_significant_most_specific_go_enrichment.tsv", file_stub)
+    ),
+    broad_result_file = file.path(
+      significant_dir,
+      sprintf("%s_significant_broad_parent_go_enrichment.tsv", file_stub)
+    ),
+    significant_plot_prefix = file.path(significant_dir, sprintf("%s_significant", file_stub)),
+    specific_plot_prefix = file.path(significant_dir, sprintf("%s_significant_most_specific", file_stub)),
+    broad_plot_prefix = file.path(significant_dir, sprintf("%s_significant_broad_parent", file_stub))
   )
 }
 
@@ -1359,8 +1620,12 @@ for (set_name in names(x = input_sets)) {
 
       full_result_file <- output_paths$full_result_file
       significant_result_file <- output_paths$significant_result_file
+      specific_result_file <- output_paths$specific_result_file
+      broad_result_file <- output_paths$broad_result_file
       full_plot_prefix <- output_paths$full_plot_prefix
       significant_plot_prefix <- output_paths$significant_plot_prefix
+      specific_plot_prefix <- output_paths$specific_plot_prefix
+      broad_plot_prefix <- output_paths$broad_plot_prefix
 
       status <- "success"
       note <- ""
@@ -1370,6 +1635,8 @@ for (set_name in names(x = input_sets)) {
       if (length(x = sig_ids) == 0) {
         write_empty_result(file_path = full_result_file, method = method_name)
         write_empty_result(file_path = significant_result_file, method = method_name)
+        write_empty_result(file_path = specific_result_file, method = method_name)
+        write_empty_result(file_path = broad_result_file, method = method_name)
         status <- "empty"
         note <- "No input IDs remained after filtering to the background universe."
 
@@ -1387,6 +1654,8 @@ for (set_name in names(x = input_sets)) {
           note = note,
           full_result_file = full_result_file,
           significant_result_file = significant_result_file,
+          specific_result_file = specific_result_file,
+          broad_result_file = broad_result_file,
           direction_dir = output_paths$direction_dir,
           significant_dir = output_paths$significant_dir,
           stringsAsFactors = FALSE
@@ -1430,15 +1699,34 @@ for (set_name in names(x = input_sets)) {
       if (is.null(x = analysis_output)) {
         write_empty_result(file_path = full_result_file, method = method_name)
         write_empty_result(file_path = significant_result_file, method = method_name)
+        write_empty_result(file_path = specific_result_file, method = method_name)
+        write_empty_result(file_path = broad_result_file, method = method_name)
         status <- "analysis_failed"
         note <- "Analysis failed. See warnings log."
       } else {
         result_df <- analysis_output$result_df
+        result_df <- add_go_context_columns(
+          result_df = result_df,
+          method = method_name,
+          term2name = term2name
+        )
         result_count <- nrow(x = result_df)
         significant_df <- filter_significant_results(
           result_df = result_df,
           method = method_name,
           fdr_cutoff = args$fdr_cutoff
+        )
+        significant_df <- mark_most_specific_significant(
+          significant_df = significant_df,
+          method = method_name
+        )
+        specific_df <- filter_most_specific_significant(
+          significant_df = significant_df,
+          method = method_name
+        )
+        broad_df <- filter_broad_parent_significant(
+          significant_df = significant_df,
+          method = method_name
         )
         significant_result_count <- nrow(x = significant_df)
 
@@ -1462,6 +1750,22 @@ for (set_name in names(x = input_sets)) {
           }
         } else {
           write_table_tsv(df = significant_df, file_path = significant_result_file)
+        }
+
+        if (args$write_specific_terms) {
+          if (exists(x = "specific_df") && nrow(x = specific_df) > 0) {
+            write_table_tsv(df = specific_df, file_path = specific_result_file)
+          } else {
+            write_empty_result(file_path = specific_result_file, method = method_name)
+          }
+        }
+
+        if (args$write_broad_terms) {
+          if (exists(x = "broad_df") && nrow(x = broad_df) > 0) {
+            write_table_tsv(df = broad_df, file_path = broad_result_file)
+          } else {
+            write_empty_result(file_path = broad_result_file, method = method_name)
+          }
         }
 
         if (args$make_plots) {
@@ -1544,6 +1848,8 @@ for (set_name in names(x = input_sets)) {
         note = note,
         full_result_file = full_result_file,
         significant_result_file = significant_result_file,
+        specific_result_file = specific_result_file,
+        broad_result_file = broad_result_file,
         direction_dir = output_paths$direction_dir,
         significant_dir = output_paths$significant_dir,
         stringsAsFactors = FALSE
