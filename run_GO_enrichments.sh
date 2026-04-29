@@ -99,11 +99,11 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
 
 
 
-
-  ###### - we need gene lengths for the Goseq
+#######################################################################
+####### - we need gene lengths for the Goseq
 
 Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
-  --de_file data/sig_DE_genes_list_stats.csv \
+  --de_file DE_results/sig_DE_genes_list_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_gene_both_methods \
   --id_type gene \
@@ -118,7 +118,7 @@ Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
 
 
 Rscript  GO_enrichment/barley_go_enrichment_custom_v6_GO_context.R  \
-  --de_file data/sig_DE_transcriipts_lists_stats.csv \
+  --de_file DE_results/sig_DE_transcriipts_lists_stats.csv \
   --annotation_file data/BaRT2v18_annotation_GO_only.txt \
   --out_dir go_transcript_both_methods \
   --id_type transcript \
